@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bot de Seguridad (Sin IA)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    * { box-sizing: border-box; font-family: "Segoe UI", Tahoma, sans-serif; }
+    body {
+      margin: 0;
+      background: #eef1f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    .app {
+      width: 100%;
+      max-width: 720px;
+      height: min(92vh, 820px);
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 12px 35px rgba(0,0,0,0.12);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .header {
+      background: #1f3a5f;
+      color: white;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      width: 34px; height: 34px; border-radius: 10px;
+      display: grid; place-items: center;
+      background: rgba(255,255,255,0.12);
+      font-size: 18px;
+    }
+    .title { display: flex; flex-direction: column; line-height: 1.1; }
+    .title strong { font-size: 16px; letter-spacing: 0.2px; }
+    .title small { opacity: 0.85; font-size: 12px; margin-top: 4px; }
+
+    .content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr;
+      background: #f7f9fc;
+      overflow: hidden;
+    }
+
+    .chat {
+      padding: 16px;
+      overflow-y: auto;
+    }
+
+    .row { display: flex; margin-bottom: 12px; }
+    .row.bot { justify-content: flex-start; }
+    .row.user { justify-content: flex-end; }
+
+    .bubble {
+      max-width: 86%;
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .bot .bubble {
+      background: #e4e8ee;
+      color: #222;
+      border-bottom-left-radius: 6px;
+    }
+    .user .bubble {
+      background: #1f3a5f;
+      color: white;
+      border-bottom-right-radius: 6px;
+    }
+
+    .panel {
+      border-top: 1px solid #e5e8ef;
+      padding: 12px;
+      background: white;
+    }
+
+    .options {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .btn {
+      border: 1px solid #cfd6e2;
+      background: #fbfcfe;
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      text-align: left;
+      font-size: 14px;
+      transition: transform 0.05s ease, border-color 0.2s ease;
+    }
+    .btn:hover { border-color: #1f3a5f; }
+    .btn:active { transform: scale(0.99); }
+
+    .footer-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .btn-small {
+      border: none;
+      background: #1f3a5f;
+      color: white;
+      padding: 9px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .btn-small.secondary {
+      background: #e4e8ee;
+      color: #1f3a5f;
+      border: 1px solid #cfd6e2;
+      font-weight: 700;
+    }
+
+    .hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #425466;
+      background: #f1f4fa;
+      border: 1px solid #e5e8ef;
+      padding: 10px 12px;
+      border-radius: 12px;
+    }
+
+    @media (min-width: 720px) {
+      .options { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="badge">🦺</div>
+      <div class="title">
+        <strong>Agente Virtual de Seguridad</strong>
+        <small>Respuestas predeterminadas • Guía SST</small>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="chat" id="chat"></div>
+
+      <div class="panel">
+        <div class="options" id="options"></div>
+
+        <div class="footer-actions">
+          <button class="btn-small secondary" onclick="goBack()">← Volver</button>
+          <button class="btn-small secondary" onclick="goHome()">Inicio</button>
+          <button class="btn-small" onclick="showHelp()">Contactar supervisor</button>
+        </div>
+
+        <div class="hint" id="hint">
+          Selecciona una opción. Este bot no usa IA: entrega información estándar y checklists.
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ---------------------------
+  // 1) BASE DE CONOCIMIENTO (predefinida)
+  // ---------------------------
+  // Puedes editar textos aquí y agregar categorías sin tocar la lógica.
+  const KB = {
+    home: {
+      botText:
+`Hola, soy tu agente virtual de seguridad.
+Elige un tema para aprender conceptos, requisitos y checklists.`,
+      options: [
+        { id: "iperc", label: "IPERC (Identificación de Peligros y Evaluación de Riesgos)" },
+        { id: "petsa", label: "PETS / Procedimientos y estándares" },
+        { id: "ats", label: "ATS / AST (Análisis Seguro de Trabajo)" },
+        { id: "peligros_riesgos", label: "Peligros vs Riesgos (con ejemplos)" },
+        { id: "epp", label: "EPP (selección y uso correcto)" },
+        { id: "alto_riesgo", label: "Trabajos de Alto Riesgo (PETAR, controles)" },
+        { id: "loto", label: "LOTO (bloqueo y etiquetado)" },
+        { id: "incidentes", label: "Incidentes y reporte (qué hacer)" },
+      ]
+    },
+
+    iperc: {
+      botText:
+`IPERC: Identificación de Peligros, Evaluación de Riesgos y Controles.
+Sirve para reconocer peligros, estimar el nivel de riesgo y definir controles antes y durante una tarea.
+
+Qué incluye normalmente:
+• Peligros (energía, altura, electricidad, atrapamientos, etc.)
+• Consecuencia y probabilidad
+• Controles (jerarquía: eliminación → sustitución → ingeniería → administrativos → EPP)
+
+Elige qué quieres ver:`,
+      options: [
+        { id: "iperc_base_vs_continuo", label: "IPERC Base vs IPERC Continuo" },
+        { id: "iperc_pasos", label: "Pasos para hacer un IPERC (rápido)" },
+        { id: "iperc_checklist", label: "Checklist IPERC en campo" },
+        { id: "home", label: "Volver al menú principal" }
+      ]
+    },
+
+    iperc_base_vs_continuo: {
+      botText:
+`IPERC Base:
+• Matriz “estándar” del área/tarea (peligros típicos y controles definidos).
+• Se usa como referencia y base de entrenamiento/planificación.
+
+IPERC Continuo (en campo):
+• Se realiza antes y durante la tarea.
+• Ajusta controles según cambios reales (clima, interferencias, energía, tráfico, condición del equipo, etc.)
+
+Regla práctica:
+Si cambia el escenario → actualiza el IPERC Continuo y revalida controles.`,
+      options: [
+        { id: "iperc", label: "Volver a IPERC" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    iperc_pasos: {
+      botText:
+`Pasos rápidos para un IPERC (en campo):
+1) Define tarea y alcance (qué, dónde, con qué equipo).
+2) Identifica peligros por etapa (preparación, ejecución, cierre).
+3) Evalúa el riesgo (probabilidad/consecuencia según tu matriz).
+4) Define controles con jerarquía (no empieces por EPP).
+5) Asigna responsables y verificación (quién valida qué y cuándo).
+6) Comunica al equipo y confirma entendimiento (briefing).
+7) Si cambia el entorno, detén y reevalúa (IPERC Continuo).`,
+      options: [
+        { id: "iperc", label: "Volver a IPERC" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    iperc_checklist: {
+      botText:
+`Checklist IPERC (campo) – verificación rápida:
+□ Área señalizada / control de acceso
+□ Interferencias identificadas (vehículos, equipos, líneas energizadas)
+□ Condiciones ambientales (lluvia, viento, tormenta eléctrica, polvo)
+□ Energías peligrosas identificadas (eléctrica, neumática, hidráulica, gravedad)
+□ Herramientas y equipos inspeccionados
+□ Permisos aplicables listos (si corresponde)
+□ Controles críticos implementados (barandas, líneas de vida, bloqueo, etc.)
+□ EPP correcto y en buen estado
+□ Plan de comunicación / emergencia (radios, rutas, puntos de reunión)
+
+Si hay un “NO” crítico → detener y corregir antes de continuar.`,
+      options: [
+        { id: "iperc", label: "Volver a IPERC" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    petsa: {
+      botText:
+`PETS / Procedimientos y Estándares:
+Son documentos/lineamientos que describen la forma segura de ejecutar tareas.
+
+Úsalos para:
+• Estandarizar controles
+• Capacitar y verificar competencias
+• Reducir variabilidad y errores
+
+Elige qué deseas:`,
+      options: [
+        { id: "petsa_uso", label: "Cómo usar un PETS antes de una tarea" },
+        { id: "petsa_checklist", label: "Checklist rápido (cumplimiento)" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    petsa_uso: {
+      botText:
+`Cómo usar un PETS:
+1) Lee el alcance (qué cubre y qué no).
+2) Verifica herramientas/equipos requeridos.
+3) Identifica controles obligatorios (barreras críticas).
+4) Confirma competencias (quién puede ejecutar/autorizar).
+5) Aplica IPERC/ATS complementario si el PETS no cubre el escenario exacto.
+6) Briefing al equipo y roles claros.`,
+      options: [
+        { id: "petsa", label: "Volver a PETS" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    petsa_checklist: {
+      botText:
+`Checklist PETS:
+□ La tarea coincide con el alcance del PETS
+□ Se tiene versión vigente / procedimiento aplicable
+□ Controles críticos implementados antes de iniciar
+□ Equipo/herramientas inspeccionadas
+□ Personal competente (autorización/certificación)
+□ Señalización y control de área
+□ Plan de respuesta ante emergencias definido`,
+      options: [
+        { id: "petsa", label: "Volver a PETS" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    ats: {
+      botText:
+`ATS / AST (Análisis Seguro de Trabajo):
+Herramienta para descomponer una tarea en pasos, identificar peligros por paso y definir controles.
+
+Útil cuando:
+• La tarea es no rutinaria o cambiante
+• Hay múltiples riesgos simultáneos
+• Se requiere coordinación entre varias personas/equipos`,
+      options: [
+        { id: "ats_pasos", label: "Cómo hacer un ATS (estructura)" },
+        { id: "ats_ejemplo", label: "Ejemplo (estructura) de ATS" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    ats_pasos: {
+      botText:
+`Estructura sugerida de un ATS:
+1) Tarea y alcance
+2) Pasos de la tarea (orden lógico)
+3) Peligros por paso (atrapamiento, energía, caída, proyección, etc.)
+4) Controles por paso (ingeniería/administrativos/EPP)
+5) Roles y responsables
+6) “Puntos de paro”: condiciones que obligan a detener
+7) Confirmación del equipo (briefing y dudas)`,
+      options: [
+        { id: "ats", label: "Volver a ATS" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    ats_ejemplo: {
+      botText:
+`Ejemplo de ATS (formato):
+Tarea: Cambio de guarda de protección en equipo.
+Paso 1: Aislar energías → Peligro: energías peligrosas → Control: LOTO + verificación de energía cero.
+Paso 2: Retiro de guarda → Peligro: atrapamiento/cortes → Control: herramientas adecuadas + guantes anticorte.
+Paso 3: Instalación → Peligro: caída de componentes → Control: apoyo mecánico / aseguramiento.
+Paso 4: Prueba → Peligro: arranque inesperado → Control: retiro de bloqueo solo con autorización + área despejada.`,
+      options: [
+        { id: "ats", label: "Volver a ATS" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    peligros_riesgos: {
+      botText:
+`Diferencia clave:
+• Peligro: fuente con potencial de daño (energía, sustancia, condición).
+• Riesgo: combinación de probabilidad y consecuencia de que ocurra el daño.
+
+Ejemplos:
+• Peligro: trabajo en altura → Riesgo: caída con lesión grave
+• Peligro: cable energizado → Riesgo: electrocución
+• Peligro: polvo respirable → Riesgo: afectación respiratoria
+
+Elige qué deseas:`,
+      options: [
+        { id: "jerarquia_controles", label: "Jerarquía de controles (cómo priorizar)" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    jerarquia_controles: {
+      botText:
+`Jerarquía de controles (mejor a peor):
+1) Eliminación (quitar el peligro)
+2) Sustitución (reemplazar por algo menos peligroso)
+3) Controles de ingeniería (guardas, enclavamientos, ventilación, barandas)
+4) Administrativos (procedimientos, señalización, permisos, capacitación)
+5) EPP (última barrera)
+
+Regla: si dependes solo del EPP, el control suele ser débil.`,
+      options: [
+        { id: "peligros_riesgos", label: "Volver a Peligros/Riesgos" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    epp: {
+      botText:
+`EPP (Equipo de Protección Personal):
+El EPP es la última barrera. Debe seleccionarse según el riesgo y mantenerse en buen estado.
+
+Elige una guía:`,
+      options: [
+        { id: "epp_seleccion", label: "Cómo seleccionar EPP (por tipo de peligro)" },
+        { id: "epp_checklist", label: "Checklist de inspección de EPP" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    epp_seleccion: {
+      botText:
+`Selección rápida de EPP (guía):
+• Ojos/cara: gafas/visor (proyección, partículas, químicos)
+• Manos: guante según riesgo (anticorte, dieléctrico, químico)
+• Respiratorio: filtro según contaminante (polvo, vapores); requiere ajuste/entrenamiento
+• Audición: tapones/orejeras (ruido)
+• Altura: arnés + línea de vida + conectores certificados (si aplica)
+• Pies: botas con puntera y suela según entorno (antideslizante, dieléctrica)
+
+Si me dices la tarea y el entorno, puedo darte una guía más específica.`,
+      options: [
+        { id: "epp", label: "Volver a EPP" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    epp_checklist: {
+      botText:
+`Checklist EPP:
+□ Sin cortes/roturas/deformaciones
+□ Tallas correctas (ajuste)
+□ Fechas/inspección vigente (si aplica)
+□ Conectores/hebillas (arnés) sin desgaste
+□ Respirador con sello y filtros correctos
+□ Lentes sin rayaduras que afecten visión
+□ Limpieza y almacenamiento adecuados`,
+      options: [
+        { id: "epp", label: "Volver a EPP" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    alto_riesgo: {
+      botText:
+`Trabajos de Alto Riesgo:
+Incluyen tareas con potencial severo (altura, energías peligrosas, izaje, espacios confinados, caliente, etc.).
+Suelen requerir permisos, verificaciones y controles críticos.
+
+Elige:`,
+      options: [
+        { id: "petar", label: "PETAR (definición y uso)" },
+        { id: "alto_riesgo_checklist", label: "Checklist previo a un trabajo de alto riesgo" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    petar: {
+      botText:
+`PETAR: Permiso Escrito de Trabajo de Alto Riesgo.
+Documento que autoriza la ejecución de un trabajo de alto riesgo confirmando:
+• IPERC/ATS aplicado
+• Controles críticos implementados
+• Responsable(s) y autorizaciones definidas
+• Verificación previa y condiciones de paro
+
+Nota: Los requisitos exactos dependen del estándar interno de la operación.`,
+      options: [
+        { id: "alto_riesgo", label: "Volver a Alto Riesgo" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    alto_riesgo_checklist: {
+      botText:
+`Checklist Alto Riesgo (previo):
+□ Permisos requeridos completos (si aplica)
+□ Energía controlada/aislada (cuando corresponda)
+□ Señalización y control de área
+□ Supervisión/roles claros
+□ Equipos certificados/inspeccionados (arnés, eslingas, herramientas)
+□ Comunicación efectiva (radios, señales, “stop work”)
+□ Condiciones ambientales aceptables
+□ Plan de rescate/emergencia (si aplica)`,
+      options: [
+        { id: "alto_riesgo", label: "Volver a Alto Riesgo" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    loto: {
+      botText:
+`LOTO (Bloqueo y Etiquetado):
+Método para controlar energías peligrosas y evitar arranques/liberaciones inesperadas durante mantenimiento/intervención.
+
+Elige:`,
+      options: [
+        { id: "loto_pasos", label: "Pasos LOTO (resumen)" },
+        { id: "loto_errores", label: "Errores comunes en LOTO" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    loto_pasos: {
+      botText:
+`Pasos LOTO (resumen):
+1) Preparar y notificar
+2) Parar el equipo
+3) Aislar energía (eléctrica, neumática, hidráulica, gravedad)
+4) Bloquear y etiquetar
+5) Liberar energía residual
+6) Verificar “energía cero”
+7) Ejecutar trabajo
+8) Retiro de bloqueo con autorización y prueba controlada`,
+      options: [
+        { id: "loto", label: "Volver a LOTO" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    loto_errores: {
+      botText:
+`Errores comunes:
+• No verificar energía cero
+• No identificar todas las fuentes (energías secundarias)
+• Bloqueo “compartido” sin control por persona
+• Retiro de bloqueo sin autorización
+• Etiquetado incompleto o confuso`,
+      options: [
+        { id: "loto", label: "Volver a LOTO" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    incidentes: {
+      botText:
+`Reporte de incidentes:
+Un incidente incluye cuasi-accidente, condición insegura, acto inseguro, daños menores, etc.
+Objetivo: aprender y prevenir recurrencias.
+
+Elige:`,
+      options: [
+        { id: "incidente_que_hacer", label: "Qué hacer inmediatamente" },
+        { id: "incidente_buen_reporte", label: "Cómo hacer un buen reporte" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    incidente_que_hacer: {
+      botText:
+`Acción inmediata (guía):
+1) Detén el trabajo si hay riesgo activo
+2) Asegura el área / controla el peligro
+3) Notifica al supervisor/SST
+4) Atiende a personas si aplica (primeros auxilios)
+5) Conserva evidencias sin exponerte (fotos, ubicación, hora)
+6) Reporta por el canal definido (según operación)`,
+      options: [
+        { id: "incidentes", label: "Volver a Incidentes" },
+        { id: "home", label: "Menú principal" }
+      ]
+    },
+
+    incidente_buen_reporte: {
+      botText:
+`Buen reporte (estructura):
+• Qué pasó (hechos, sin culpas)
+• Dónde y cuándo
+• Qué tarea se hacía
+• Peligros identificados y controles existentes
+• Qué falló o qué cambió
+• Acciones inmediatas
+• Recomendaciones de control (mejor si son de ingeniería/administrativas)`,
+      options: [
+        { id: "incidentes", label: "Volver a Incidentes" },
+        { id: "home", label: "Menú principal" }
+      ]
+    }
+  };
+
+  // ---------------------------
+  // 2) ESTADO DEL CHAT (navegación)
+  // ---------------------------
+  let state = "home";
+  const historyStack = []; // para "volver"
+
+  // ---------------------------
+  // 3) RENDER DEL CHAT
+  // ---------------------------
+  function addBot(text) {
+    const chat = document.getElementById("chat");
+    const row = document.createElement("div");
+    row.className = "row bot";
+    row.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+    chat.appendChild(row);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function addUser(text) {
+    const chat = document.getElementById("chat");
+    const row = document.createElement("div");
+    row.className = "row user";
+    row.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+    chat.appendChild(row);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function renderOptions(nodeId) {
+    const node = KB[nodeId];
+    const optionsEl = document.getElementById("options");
+    optionsEl.innerHTML = "";
+
+    node.options.forEach((opt) => {
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = opt.label;
+      btn.onclick = () => handleChoice(opt.id, opt.label);
+      optionsEl.appendChild(btn);
+    });
+  }
+
+  function handleChoice(nextId, label) {
+    // Registro la selección del usuario
+    addUser(label);
+
+    // Guardar historial para volver
+    historyStack.push(state);
+    state = nextId;
+
+    // Respuesta del bot y nuevas opciones
+    const node = KB[state];
+    if (!node) {
+      addBot("No tengo información configurada para esta opción todavía.");
+      state = "home";
+      renderOptions("home");
+      return;
+    }
+
+    addBot(node.botText);
+    renderOptions(state);
+  }
+
+  function goHome() {
+    addUser("Ir a Inicio");
+    state = "home";
+    historyStack.length = 0;
+    addBot(KB.home.botText);
+    renderOptions("home");
+  }
+
+  function goBack() {
+    if (historyStack.length === 0) {
+      addBot("Ya estás en el inicio.");
+      return;
+    }
+    addUser("Volver");
+    state = historyStack.pop();
+    addBot(KB[state].botText);
+    renderOptions(state);
+  }
+
+  function showHelp() {
+    addUser("Contactar supervisor");
+    addBot(
+`Si tu consulta es operativa o requiere validación interna:
+• Detén el trabajo si hay peligro inmediato (“Stop Work”)
+• Contacta a tu supervisor / SST por el canal de la operación
+• Indica: tarea, área, riesgo y control aplicado
+
+Si deseas, puedo guiarte para preparar un mensaje de reporte.`
+
+    );
+  }
+
+  // Evitar inyección HTML en mensajes
+  function escapeHtml(str) {
+    return String(str)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  // ---------------------------
+  // 4) INICIO
+  // ---------------------------
+  addBot(KB.home.botText);
+  renderOptions("home");
+</script>
+
+</body>
+</html>
